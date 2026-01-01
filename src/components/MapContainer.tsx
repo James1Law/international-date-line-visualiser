@@ -119,6 +119,10 @@ export default function MapContainer({
       if (position.lat !== 0 || position.lng !== lng) {
         shipMarker.setLatLng([0, lng])
       }
+
+      // Convert display longitude (0-360) back to normalized (-180 to 180)
+      const normalizedLng = lng > 180 ? lng - 360 : lng
+      onPositionChange(normalizedLng)
     })
 
     shipMarker.on('dragend', () => {
