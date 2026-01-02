@@ -10,10 +10,11 @@ Ship's Time Zone Visualizer - an interactive web application that visualizes how
 
 **Implemented Features:**
 - Fixed map view showing UTC (0°) on left, IDL (180°) in center, UTC (360°) on right
-- Timezone lines every 15° with labels (UTC-12 through UTC+12)
+- Political timezone boundaries displayed using Natural Earth TopoJSON data
 - International Date Line highlighted in red with "IDL" label
-- Draggable ship marker constrained to visible map area
-- Real-time display of ship's longitude, local time, and UTC time
+- Draggable ship marker (can move latitude and longitude)
+- Real-time display of ship's longitude, local time, UTC time, and IANA timezone name
+- Support for fractional timezone offsets (e.g., India UTC+5:30, Nepal UTC+5:45)
 - Date line crossing alerts (shows +1 DAY or -1 DAY notification)
 - Map zoom/pan disabled for focused user experience
 
@@ -24,8 +25,9 @@ Ship's Time Zone Visualizer - an interactive web application that visualizes how
 
 - **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite 7
-- **Mapping**: Leaflet.js
+- **Mapping**: Leaflet.js with TopoJSON timezone data
 - **Time/Date**: Luxon
+- **Timezone Lookup**: @photostructure/tz-lookup (coordinate to IANA timezone)
 - **Styling**: Tailwind CSS 4
 - **Testing**: Vitest with React Testing Library
 
@@ -67,9 +69,10 @@ src/
 ## Key Domain Logic
 
 ### Time Zone Calculation
-- Each 15° longitude = ±1 hour from UTC
-- Ship's local time = UTC + (longitude / 15) hours
-- Timezone offset clamped to ±12 hours
+- Uses @photostructure/tz-lookup to get IANA timezone from coordinates
+- Luxon handles timezone offset calculation (including DST)
+- Supports fractional offsets: UTC+5:30 (India), UTC+5:45 (Nepal), etc.
+- Fallback to longitude-based calculation if lookup fails
 
 ### Longitude Normalization
 - All longitudes normalized to -180° to +180° range
@@ -84,7 +87,8 @@ src/
 - Fixed view centered on International Date Line (180°)
 - Zoom level 1.5 (shows full longitude range)
 - All zoom/pan interactions disabled
-- Ship constrained to equator (lat=0) and visible longitude range
+- Ship can move freely within visible bounds (lat: -60° to 70°, lng: 0° to 360°)
+- Timezone boundaries loaded from /public/timezones.json (Natural Earth data)
 
 ## Design Guidelines
 
@@ -98,7 +102,7 @@ src/
 
 ## Testing
 
-- 112 tests across 9 test files
+- 119 tests across 9 test files
 - TDD approach used throughout development
 - All components have corresponding `.test.tsx` files
-- Leaflet is mocked in component tests
+- Leaflet and fetch are mocked in component tests
