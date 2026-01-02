@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon'
+import tzlookup from '@photostructure/tz-lookup'
 
 /**
  * Normalize longitude to the range -180 to 180.
@@ -20,9 +21,38 @@ export function normalizeLongitude(longitude: number): number {
 }
 
 /**
+ * Get timezone information from coordinates.
+ * Returns the IANA timezone name (e.g., "Asia/Kolkata", "America/New_York").
+ */
+export function getTimezoneFromCoordinates(latitude: number, longitude: number): string {
+  const normalizedLng = normalizeLongitude(longitude)
+  try {
+    return tzlookup(latitude, normalizedLng)
+  } catch {
+    // Fallback for edge cases - use UTC offset based on longitude
+    const offset = Math.round(normalizedLng / 15)
+    const clampedOffset = Math.max(-12, Math.min(12, offset))
+    if (clampedOffset === 0) return 'UTC'
+    return clampedOffset > 0 ? `Etc/GMT-${clampedOffset}` : `Etc/GMT+${Math.abs(clampedOffset)}`
+  }
+}
+
+/**
+ * Get timezone offset in hours (including fractional hours) from coordinates.
+ * Uses actual political timezone data for accurate offsets.
+ */
+export function getTimezoneOffset(latitude: number, longitude: number): number {
+  const timezone = getTimezoneFromCoordinates(latitude, longitude)
+  const dt = DateTime.now().setZone(timezone)
+  // Luxon offset is in minutes, convert to hours
+  return dt.offset / 60
+}
+
+/**
  * Calculate timezone offset in hours based on longitude.
  * Each 15° of longitude = 1 hour offset from UTC.
  * Normalizes longitude first and clamps result to -12 to +12.
+ * @deprecated Use getTimezoneOffset(lat, lng) for political timezone accuracy
  */
 export function calculateTimezoneOffset(longitude: number): number {
   const normalized = normalizeLongitude(longitude)
@@ -32,11 +62,12 @@ export function calculateTimezoneOffset(longitude: number): number {
 }
 
 /**
- * Calculate ship's local time based on UTC time and longitude.
+ * Calculate ship's local time based on UTC time and coordinates.
+ * Uses actual political timezone for accurate time calculation.
  */
-export function calculateShipTime(utc: DateTime, longitude: number): DateTime {
-  const offsetHours = calculateTimezoneOffset(longitude)
-  return utc.plus({ hours: offsetHours })
+export function calculateShipTime(utc: DateTime, latitude: number, longitude: number): DateTime {
+  const timezone = getTimezoneFromCoordinates(latitude, longitude)
+  return utc.setZone(timezone)
 }
 
 /**
@@ -67,4 +98,23 @@ export function formatTime(dt: DateTime): string {
  */
 export function formatDate(dt: DateTime): string {
   return dt.toFormat('d MMMM yyyy')
+}
+
+/**
+ * Format timezone offset as UTC string.
+ * Handles whole hours and fractional offsets (e.g., UTC+5:30).
+ * Example: 5.5 -> "UTC+5:30", -8 -> "UTC-8"
+ */
+export function formatTimezoneOffset(offsetHours: number): string {
+  if (offsetHours === 0) return 'UTC'
+
+  const sign = offsetHours >= 0 ? '+' : '-'
+  const absOffset = Math.abs(offsetHours)
+  const hours = Math.floor(absOffset)
+  const minutes = Math.round((absOffset - hours) * 60)
+
+  if (minutes === 0) {
+    return `UTC${sign}${hours}`
+  }
+  return `UTC${sign}${hours}:${minutes.toString().padStart(2, '0')}`
 }

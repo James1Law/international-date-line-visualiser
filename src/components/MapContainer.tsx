@@ -1,23 +1,32 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
+import * as topojson from 'topojson-client'
+import type { Topology, GeometryCollection } from 'topojson-specification'
 
-const TIMEZONE_LINE_COLOR = '#666666'
 const DATE_LINE_COLOR = '#FF6B6B'
+const TIMEZONE_COLORS = ['#2C5F7C', '#4A90A4'] // Alternating nautical blues
 
 interface MapContainerProps {
+  shipLatitude: number
   shipLongitude: number
-  onPositionChange: (longitude: number) => void
+  onPositionChange: (latitude: number, longitude: number) => void
 }
 
-function getTimezoneLabel(longitude: number): string {
-  if (Math.abs(longitude) === 180) {
-    return 'IDL'
+interface TimezoneProperties {
+  zone: number
+  name: string
+  utc_format: string
+}
+
+function getTimezoneStyle(_feature: GeoJSON.Feature | undefined): L.PathOptions {
+  // Use consistent styling for all timezone polygons
+  return {
+    fillColor: TIMEZONE_COLORS[0],
+    fillOpacity: 0.1,
+    color: '#666666',
+    weight: 1,
+    opacity: 0.5,
   }
-  const offset = longitude / 15
-  if (offset === 0) {
-    return 'UTC'
-  }
-  return offset > 0 ? `UTC+${offset}` : `UTC${offset}`
 }
 
 function createShipIcon(): L.Icon {
@@ -30,6 +39,7 @@ function createShipIcon(): L.Icon {
 }
 
 export default function MapContainer({
+  shipLatitude,
   shipLongitude,
   onPositionChange,
 }: MapContainerProps) {
@@ -60,48 +70,59 @@ export default function MapContainer({
       maxZoom: 20,
     }).addTo(map)
 
-    // Add time zone lines every 15 degrees longitude
-    // Draw for the visible range (centered on 180°, showing 0° to 360°)
-    for (let lng = 0; lng <= 360; lng += 15) {
-      const baseLng = lng <= 180 ? lng : lng - 360  // Convert to -180 to 180 range for labels
-      const isDateLine = lng === 180
-      const color = isDateLine ? DATE_LINE_COLOR : TIMEZONE_LINE_COLOR
-      const weight = isDateLine ? 3 : 1
-      const opacity = isDateLine ? 1 : 0.5
+    // Load and display timezone boundaries from TopoJSON
+    fetch('/timezones.json')
+      .then(response => response.json())
+      .then((topoData: Topology<{ ne_10m_time_zones: GeometryCollection<TimezoneProperties> }>) => {
+        const geojsonData = topojson.feature(topoData, topoData.objects.ne_10m_time_zones)
 
-      L.polyline(
-        [
-          [-90, lng],
-          [90, lng],
-        ],
-        {
-          color,
-          weight,
-          opacity,
-          dashArray: isDateLine ? undefined : '5, 5',
-        }
-      ).addTo(map)
+        // Add timezone polygons with alternating colors
+        L.geoJSON(geojsonData, {
+          style: getTimezoneStyle,
+          onEachFeature: (feature, layer) => {
+            // Add tooltip with timezone info
+            const props = feature.properties as TimezoneProperties
+            if (props?.utc_format) {
+              layer.bindTooltip(props.utc_format, {
+                permanent: false,
+                direction: 'center',
+                className: 'timezone-tooltip',
+              })
+            }
+          },
+        }).addTo(map)
+      })
+      .catch(err => console.warn('Failed to load timezone data:', err))
 
-      // Add timezone label at the top of each line
-      const label = getTimezoneLabel(baseLng)
-      const labelClass = isDateLine ? 'timezone-label date-line-label' : 'timezone-label'
+    // Add International Date Line overlay (prominent)
+    L.polyline(
+      [
+        [-90, 180],
+        [90, 180],
+      ],
+      {
+        color: DATE_LINE_COLOR,
+        weight: 3,
+        opacity: 1,
+      }
+    ).addTo(map)
 
-      L.marker([60, lng], {
-        icon: L.divIcon({
-          className: labelClass,
-          html: `<span>${label}</span>`,
-          iconSize: [50, 20],
-          iconAnchor: [25, 10],
-        }),
-        interactive: false,
-      }).addTo(map)
-    }
+    // Add IDL label
+    L.marker([60, 180], {
+      icon: L.divIcon({
+        className: 'timezone-label date-line-label',
+        html: '<span>IDL</span>',
+        iconSize: [50, 20],
+        iconAnchor: [25, 10],
+      }),
+      interactive: false,
+    }).addTo(map)
 
     // Add draggable ship marker
     const shipIcon = createShipIcon()
     // Convert normalized longitude (-180 to 180) to display longitude (0 to 360)
     const displayLng = shipLongitude < 0 ? shipLongitude + 360 : shipLongitude
-    const shipMarker = L.marker([0, displayLng], {
+    const shipMarker = L.marker([shipLatitude, displayLng], {
       icon: shipIcon,
       draggable: true,
     }).addTo(map)
@@ -109,33 +130,41 @@ export default function MapContainer({
     shipMarker.on('drag', () => {
       // Constrain ship to visible map bounds during drag
       const position = shipMarker.getLatLng()
+      let lat = position.lat
       let lng = position.lng
 
       // Clamp longitude to 0-360 range (visible area)
       if (lng < 0) lng = 0
       if (lng > 360) lng = 360
 
-      // Keep latitude at 0 (equator)
-      if (position.lat !== 0 || position.lng !== lng) {
-        shipMarker.setLatLng([0, lng])
+      // Clamp latitude to reasonable bounds
+      if (lat < -60) lat = -60
+      if (lat > 70) lat = 70
+
+      // Update marker position if constrained
+      if (position.lat !== lat || position.lng !== lng) {
+        shipMarker.setLatLng([lat, lng])
       }
 
       // Convert display longitude (0-360) back to normalized (-180 to 180)
       const normalizedLng = lng > 180 ? lng - 360 : lng
-      onPositionChange(normalizedLng)
+      onPositionChange(lat, normalizedLng)
     })
 
     shipMarker.on('dragend', () => {
       const position = shipMarker.getLatLng()
+      let lat = position.lat
       let lng = position.lng
 
       // Clamp to visible range
       if (lng < 0) lng = 0
       if (lng > 360) lng = 360
+      if (lat < -60) lat = -60
+      if (lat > 70) lat = 70
 
       // Convert display longitude (0-360) back to normalized (-180 to 180)
       const normalizedLng = lng > 180 ? lng - 360 : lng
-      onPositionChange(normalizedLng)
+      onPositionChange(lat, normalizedLng)
     })
 
     shipMarkerRef.current = shipMarker
@@ -148,14 +177,14 @@ export default function MapContainer({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update ship position when prop changes
+  // Update ship position when props change
   useEffect(() => {
     if (shipMarkerRef.current) {
       // Convert normalized longitude (-180 to 180) to display longitude (0 to 360)
       const displayLng = shipLongitude < 0 ? shipLongitude + 360 : shipLongitude
-      shipMarkerRef.current.setLatLng([0, displayLng])
+      shipMarkerRef.current.setLatLng([shipLatitude, displayLng])
     }
-  }, [shipLongitude])
+  }, [shipLatitude, shipLongitude])
 
   return (
     <div

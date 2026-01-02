@@ -1,26 +1,24 @@
 import { DateTime } from 'luxon'
 import {
-  calculateTimezoneOffset,
+  getTimezoneOffset,
+  getTimezoneFromCoordinates,
   calculateShipTime,
   formatLongitude,
   formatTime,
   formatDate,
+  formatTimezoneOffset,
 } from '../utils/timeCalculations'
 
 interface ShipPositionPanelProps {
+  latitude: number
   longitude: number
   utcTime: DateTime
 }
 
-function formatTimezoneOffset(offset: number): string {
-  if (offset === 0) return 'UTC+0'
-  if (offset > 0) return `UTC+${offset}`
-  return `UTC${offset}`
-}
-
-export default function ShipPositionPanel({ longitude, utcTime }: ShipPositionPanelProps) {
-  const offset = calculateTimezoneOffset(longitude)
-  const shipTime = calculateShipTime(utcTime, longitude)
+export default function ShipPositionPanel({ latitude, longitude, utcTime }: ShipPositionPanelProps) {
+  const offset = getTimezoneOffset(latitude, longitude)
+  const timezone = getTimezoneFromCoordinates(latitude, longitude)
+  const shipTime = calculateShipTime(utcTime, latitude, longitude)
 
   return (
     <div className="p-4 grid grid-cols-3 gap-6 text-[#1A1A1A]" data-testid="ship-position-panel">
@@ -34,6 +32,7 @@ export default function ShipPositionPanel({ longitude, utcTime }: ShipPositionPa
         </div>
         <div className="text-2xl font-mono">{formatDate(shipTime)}</div>
         <div className="text-xl font-mono text-gray-700">{formatTime(shipTime)}</div>
+        <div className="text-xs text-gray-500 mt-1">{timezone}</div>
       </div>
       <div>
         <div className="text-sm font-semibold uppercase tracking-wide text-gray-600">

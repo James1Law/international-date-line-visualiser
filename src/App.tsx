@@ -7,6 +7,7 @@ import { detectDateLineCrossing, type DateLineCrossing } from './utils/dateLineC
 
 function App() {
   const utcTime = useCurrentTime()
+  const [shipLatitude, setShipLatitude] = useState(0)
   const [shipLongitude, setShipLongitude] = useState(0)
   const [dateLineCrossing, setDateLineCrossing] = useState<DateLineCrossing | null>(null)
   const prevLongitudeRef = useRef<number>(0)
@@ -25,7 +26,8 @@ function App() {
     prevLongitudeRef.current = shipLongitude
   }, [shipLongitude])
 
-  const handlePositionChange = (longitude: number) => {
+  const handlePositionChange = (latitude: number, longitude: number) => {
+    setShipLatitude(latitude)
     setShipLongitude(longitude)
   }
 
@@ -42,13 +44,14 @@ function App() {
       <main className="flex-1 flex flex-col">
         <div className="flex-1 relative">
           <MapContainer
+            shipLatitude={shipLatitude}
             shipLongitude={shipLongitude}
             onPositionChange={handlePositionChange}
           />
         </div>
 
         <div className="bg-[#E8DCC4] border-t-4 border-[#D4C5A9]">
-          <ShipPositionPanel longitude={shipLongitude} utcTime={utcTime} />
+          <ShipPositionPanel latitude={shipLatitude} longitude={shipLongitude} utcTime={utcTime} />
         </div>
       </main>
     </div>

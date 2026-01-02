@@ -6,6 +6,9 @@ import {
   formatLongitude,
   formatTime,
   formatDate,
+  formatTimezoneOffset,
+  getTimezoneFromCoordinates,
+  getTimezoneOffset,
 } from './timeCalculations'
 
 describe('timeCalculations', () => {
@@ -79,35 +82,41 @@ describe('timeCalculations', () => {
   })
 
   describe('calculateShipTime', () => {
-    it('returns same time as UTC for longitude 0', () => {
+    // Note: These tests use lat=0 (equator over ocean) where political timezones
+    // roughly follow the 15-degree longitude rule
+    it('returns same time as UTC for longitude 0 at equator', () => {
       const utc = DateTime.utc(2026, 1, 15, 12, 0)
-      const shipTime = calculateShipTime(utc, 0)
+      const shipTime = calculateShipTime(utc, 0, 0)
       expect(shipTime.hour).toBe(12)
       expect(shipTime.minute).toBe(0)
     })
 
-    it('adds hours for positive longitude (east)', () => {
+    it('adds hours for positive longitude (east) at equator', () => {
       const utc = DateTime.utc(2026, 1, 15, 12, 0)
-      const shipTime = calculateShipTime(utc, 90) // +6 hours
+      // At equator, 90°E is roughly UTC+6
+      const shipTime = calculateShipTime(utc, 0, 90)
       expect(shipTime.hour).toBe(18)
     })
 
-    it('subtracts hours for negative longitude (west)', () => {
+    it('subtracts hours for negative longitude (west) at equator', () => {
       const utc = DateTime.utc(2026, 1, 15, 12, 0)
-      const shipTime = calculateShipTime(utc, -90) // -6 hours
+      // At equator, 90°W is roughly UTC-6
+      const shipTime = calculateShipTime(utc, 0, -90)
       expect(shipTime.hour).toBe(6)
     })
 
     it('handles day rollover for positive offset', () => {
       const utc = DateTime.utc(2026, 1, 15, 23, 0)
-      const shipTime = calculateShipTime(utc, 45) // +3 hours
+      // At equator, 45°E is roughly UTC+3
+      const shipTime = calculateShipTime(utc, 0, 45)
       expect(shipTime.hour).toBe(2)
       expect(shipTime.day).toBe(16)
     })
 
     it('handles day rollover for negative offset', () => {
       const utc = DateTime.utc(2026, 1, 15, 1, 0)
-      const shipTime = calculateShipTime(utc, -45) // -3 hours
+      // At equator, 45°W is roughly UTC-3
+      const shipTime = calculateShipTime(utc, 0, -45)
       expect(shipTime.hour).toBe(22)
       expect(shipTime.day).toBe(14)
     })
@@ -162,6 +171,59 @@ describe('timeCalculations', () => {
     it('handles single digit days', () => {
       const dt = DateTime.utc(2026, 3, 5, 12, 0)
       expect(formatDate(dt)).toBe('5 March 2026')
+    })
+  })
+
+  describe('formatTimezoneOffset', () => {
+    it('returns UTC for offset 0', () => {
+      expect(formatTimezoneOffset(0)).toBe('UTC')
+    })
+
+    it('formats positive whole hours', () => {
+      expect(formatTimezoneOffset(5)).toBe('UTC+5')
+      expect(formatTimezoneOffset(12)).toBe('UTC+12')
+    })
+
+    it('formats negative whole hours', () => {
+      expect(formatTimezoneOffset(-5)).toBe('UTC-5')
+      expect(formatTimezoneOffset(-12)).toBe('UTC-12')
+    })
+
+    it('formats half-hour offsets', () => {
+      expect(formatTimezoneOffset(5.5)).toBe('UTC+5:30')
+      expect(formatTimezoneOffset(-5.5)).toBe('UTC-5:30')
+    })
+
+    it('formats 45-minute offsets', () => {
+      expect(formatTimezoneOffset(5.75)).toBe('UTC+5:45')
+      expect(formatTimezoneOffset(-5.75)).toBe('UTC-5:45')
+    })
+  })
+
+  describe('getTimezoneFromCoordinates', () => {
+    it('returns an IANA timezone name', () => {
+      const tz = getTimezoneFromCoordinates(0, 0)
+      expect(typeof tz).toBe('string')
+      expect(tz.length).toBeGreaterThan(0)
+    })
+
+    it('returns different timezones for different locations', () => {
+      const tzLondon = getTimezoneFromCoordinates(51.5, 0)
+      const tzTokyo = getTimezoneFromCoordinates(35.7, 139.7)
+      expect(tzLondon).not.toBe(tzTokyo)
+    })
+  })
+
+  describe('getTimezoneOffset', () => {
+    it('returns a number for offset', () => {
+      const offset = getTimezoneOffset(0, 0)
+      expect(typeof offset).toBe('number')
+    })
+
+    it('returns offset within valid range', () => {
+      const offset = getTimezoneOffset(0, 0)
+      expect(offset).toBeGreaterThanOrEqual(-12)
+      expect(offset).toBeLessThanOrEqual(14)
     })
   })
 })

@@ -29,6 +29,10 @@ vi.mock('leaflet', () => {
     getLatLng: vi.fn().mockReturnValue({ lat: 0, lng: 0 }),
   }
 
+  const mockGeoJSON = {
+    addTo: vi.fn().mockReturnThis(),
+  }
+
   const mockDivIcon = {}
 
   const mockIcon = {}
@@ -39,13 +43,40 @@ vi.mock('leaflet', () => {
       tileLayer: vi.fn(() => mockTileLayer),
       polyline: vi.fn(() => mockPolyline),
       marker: vi.fn(() => mockMarker),
+      geoJSON: vi.fn(() => mockGeoJSON),
       divIcon: vi.fn(() => mockDivIcon),
       icon: vi.fn(() => mockIcon),
     },
   }
 })
 
+// Mock topojson-client
+vi.mock('topojson-client', () => ({
+  feature: vi.fn(() => ({
+    type: 'FeatureCollection',
+    features: [],
+  })),
+}))
+
+// Mock fetch for timezone data
+beforeAll(() => {
+  vi.stubGlobal('fetch', vi.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({
+        type: 'Topology',
+        objects: {
+          ne_10m_time_zones: {
+            type: 'GeometryCollection',
+            geometries: [],
+          },
+        },
+      }),
+    })
+  ))
+})
+
 const defaultProps = {
+  shipLatitude: 0,
   shipLongitude: 0,
   onPositionChange: vi.fn(),
 }
@@ -86,11 +117,9 @@ describe('MapContainer', () => {
     expect(L.tileLayer).toHaveBeenCalled()
   })
 
-  it('renders time zone lines every 15 degrees longitude', () => {
+  it('fetches timezone data on mount', () => {
     render(<MapContainer {...defaultProps} />)
-    // Should create 25 lines: 0, 15, 30, ..., 345, 360
-    const polylineCalls = (L.polyline as ReturnType<typeof vi.fn>).mock.calls
-    expect(polylineCalls.length).toBeGreaterThanOrEqual(25)
+    expect(fetch).toHaveBeenCalledWith('/timezones.json')
   })
 
   it('renders the International Date Line at 180 degrees', () => {
@@ -106,7 +135,7 @@ describe('MapContainer', () => {
     expect(dateLineCalls.length).toBeGreaterThan(0)
   })
 
-  it('styles the date line differently from other time zone lines', () => {
+  it('styles the date line with red color', () => {
     render(<MapContainer {...defaultProps} />)
     const polylineCalls = (L.polyline as ReturnType<typeof vi.fn>).mock.calls
 
@@ -127,13 +156,6 @@ describe('MapContainer', () => {
     expect(mockMap.remove).toHaveBeenCalled()
   })
 
-  it('adds timezone labels for each line', () => {
-    render(<MapContainer {...defaultProps} />)
-    const markerCalls = (L.marker as ReturnType<typeof vi.fn>).mock.calls
-    // Should create 25 labels + 1 ship marker = 26
-    expect(markerCalls.length).toBeGreaterThanOrEqual(25)
-  })
-
   it('labels the date line as IDL', () => {
     render(<MapContainer {...defaultProps} />)
     const divIconCalls = (L.divIcon as ReturnType<typeof vi.fn>).mock.calls
@@ -144,18 +166,6 @@ describe('MapContainer', () => {
     )
 
     expect(idlLabel).toBeDefined()
-  })
-
-  it('labels the prime meridian as UTC', () => {
-    render(<MapContainer {...defaultProps} />)
-    const divIconCalls = (L.divIcon as ReturnType<typeof vi.fn>).mock.calls
-
-    // Find the UTC label (should be exactly "UTC" not "UTC+0")
-    const utcLabel = divIconCalls.find((call) =>
-      call[0]?.html === '<span>UTC</span>'
-    )
-
-    expect(utcLabel).toBeDefined()
   })
 
   describe('Ship marker', () => {

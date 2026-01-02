@@ -12,10 +12,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@photostructure/tz-lookup": "^11.3.0",
     "leaflet": "^1.9.4",
     "luxon": "^3.7.2",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -25,6 +27,7 @@
     "@types/luxon": "^3.7.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "^5.1.2",
     "jsdom": "^27.4.0",
     "tailwindcss": "^4.1.18",
