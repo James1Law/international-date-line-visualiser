@@ -29,6 +29,60 @@ function getTimezoneStyle(_feature: GeoJSON.Feature | undefined): L.PathOptions 
   }
 }
 
+// Transform coordinates from -180..180 to 0..360 range for display
+function transformCoordinates(coords: number[]): number[] {
+  const [lng, lat] = coords
+  return [lng < 0 ? lng + 360 : lng, lat]
+}
+
+function transformGeometry(geometry: GeoJSON.Geometry): GeoJSON.Geometry {
+  switch (geometry.type) {
+    case 'Point':
+      return {
+        ...geometry,
+        coordinates: transformCoordinates(geometry.coordinates as number[]),
+      }
+    case 'LineString':
+    case 'MultiPoint':
+      return {
+        ...geometry,
+        coordinates: (geometry.coordinates as number[][]).map(transformCoordinates),
+      }
+    case 'Polygon':
+    case 'MultiLineString':
+      return {
+        ...geometry,
+        coordinates: (geometry.coordinates as number[][][]).map(ring =>
+          ring.map(transformCoordinates)
+        ),
+      }
+    case 'MultiPolygon':
+      return {
+        ...geometry,
+        coordinates: (geometry.coordinates as number[][][][]).map(polygon =>
+          polygon.map(ring => ring.map(transformCoordinates))
+        ),
+      }
+    case 'GeometryCollection':
+      return {
+        ...geometry,
+        geometries: geometry.geometries.map(transformGeometry),
+      }
+    default:
+      return geometry
+  }
+}
+
+function transformGeoJSON(geojson: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  return {
+    ...geojson,
+    features: geojson.features.map(feature => ({
+      ...feature,
+      geometry: transformGeometry(feature.geometry),
+    })),
+  }
+}
+
 function createShipIcon(): L.Icon {
   return L.icon({
     iconUrl: '/ship.svg',
@@ -76,8 +130,11 @@ export default function MapContainer({
       .then((topoData: Topology<{ ne_10m_time_zones: GeometryCollection<TimezoneProperties> }>) => {
         const geojsonData = topojson.feature(topoData, topoData.objects.ne_10m_time_zones)
 
-        // Add timezone polygons with alternating colors
-        L.geoJSON(geojsonData, {
+        // Transform coordinates from -180..180 to 0..360 for our map view
+        const transformedData = transformGeoJSON(geojsonData as GeoJSON.FeatureCollection)
+
+        // Add timezone polygons
+        L.geoJSON(transformedData, {
           style: getTimezoneStyle,
           onEachFeature: (feature, layer) => {
             // Add tooltip with timezone info
