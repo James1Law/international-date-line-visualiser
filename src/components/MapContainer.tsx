@@ -107,15 +107,28 @@ export default function MapContainer({
     // Initialize the map centered on the International Date Line (180°)
     // Fixed view: GMT (0°) on left, IDL (180°) in middle, GMT (360°/0°) on right
     const map = L.map(containerRef.current, {
-      zoomControl: false,      // Hide zoom controls
-      scrollWheelZoom: false,  // Disable scroll zoom
-      doubleClickZoom: false,  // Disable double-click zoom
-      touchZoom: false,        // Disable touch zoom
-      boxZoom: false,          // Disable box zoom
-      keyboard: false,         // Disable keyboard navigation
-      dragging: false,         // Disable map panning
-    }).setView([0, 180], 1.5)  // Fixed zoom level showing full longitude range
+      zoomControl: true,       // Show zoom controls
+      scrollWheelZoom: true,   // Enable scroll zoom
+      doubleClickZoom: true,   // Enable double-click zoom
+      touchZoom: true,         // Enable touch zoom
+      boxZoom: false,          // Disable box zoom (can cause issues with bounds)
+      keyboard: true,          // Enable keyboard navigation
+      dragging: true,          // Enable map panning when zoomed in
+    })
     mapRef.current = map
+
+    // Fit bounds to show exactly 0-360° longitude range
+    // This auto-calculates the correct zoom for the container size
+    map.fitBounds([[-60, 0], [70, 360]], {
+      animate: false,
+      padding: [0, 0],
+    })
+
+    // Set min zoom to current level (can't zoom out further to see duplicates)
+    // Allow zooming in up to level 10
+    const currentZoom = map.getZoom()
+    map.setMinZoom(currentZoom)
+    map.setMaxZoom(10)
 
     // Add a tile layer with nautical-style coloring
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -133,20 +146,10 @@ export default function MapContainer({
         // Transform coordinates from -180..180 to 0..360 for our map view
         const transformedData = transformGeoJSON(geojsonData as GeoJSON.FeatureCollection)
 
-        // Add timezone polygons
+        // Add timezone polygons (no tooltips - they were distracting when dragging ship)
         L.geoJSON(transformedData, {
           style: getTimezoneStyle,
-          onEachFeature: (feature, layer) => {
-            // Add tooltip with timezone info
-            const props = feature.properties as TimezoneProperties
-            if (props?.utc_format) {
-              layer.bindTooltip(props.utc_format, {
-                permanent: false,
-                direction: 'center',
-                className: 'timezone-tooltip',
-              })
-            }
-          },
+          interactive: false,  // Disable hover/click interactions
         }).addTo(map)
       })
       .catch(err => console.warn('Failed to load timezone data:', err))

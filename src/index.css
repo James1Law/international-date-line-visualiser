@@ -27,6 +27,7 @@ body {
 /* Nautical chart aesthetic for Leaflet map */
 .leaflet-container {
   background-color: var(--ocean-light);
+  overflow: hidden;  /* Hide any content beyond map bounds */
 }
 
 .leaflet-tile-pane {

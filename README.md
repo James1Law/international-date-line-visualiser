@@ -6,13 +6,15 @@ Built for maritime training and demonstrating domain expertise in timekeeping at
 
 ## Features
 
-- **Interactive World Map** - Nautical chart aesthetic with timezone lines every 15° longitude
+- **Interactive World Map** - Nautical chart aesthetic with political timezone boundaries
 - **Draggable Ship** - Move the ship across the map to see time changes in real-time
-- **Real-Time Display** - Shows ship's longitude, local time, and UTC time
+- **Real-Time Display** - Shows ship's longitude, local time (with IANA timezone), and UTC time
+- **Fractional Timezone Support** - Handles UTC+5:30 (India), UTC+5:45 (Nepal), etc.
 - **Date Line Crossing Alerts** - Visual notifications when crossing the International Date Line
   - Eastbound: Day repeated (-1 day)
   - Westbound: Day skipped (+1 day)
-- **Fixed Map View** - Centered on the International Date Line (180°) for focused learning
+- **Zoomable Map** - Zoom in for detail, with minimum zoom locked to prevent world wrap
+- **IDL-Centered View** - Map centered on the International Date Line (180°) for maritime training
 
 ## Tech Stack
 
@@ -60,9 +62,10 @@ The app will be available at `http://localhost:5173`
 ## How It Works
 
 ### Time Zone Calculation
-- Each 15° of longitude = ±1 hour from UTC
-- Ship's local time = UTC + (longitude ÷ 15) hours
-- Timezone offset is clamped to ±12 hours
+- Uses [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup) to get IANA timezone from coordinates
+- Luxon handles timezone offset calculation (including DST awareness)
+- Supports fractional offsets like UTC+5:30 (India) and UTC+5:45 (Nepal)
+- Falls back to longitude-based calculation if lookup fails
 
 ### Date Line Logic
 - **Eastbound crossing** (from ~180° to ~-180°): Subtract 1 day (repeat a day)

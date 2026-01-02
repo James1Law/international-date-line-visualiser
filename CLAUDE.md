@@ -9,17 +9,19 @@ Ship's Time Zone Visualizer - an interactive web application that visualizes how
 ## Current Status
 
 **Implemented Features:**
-- Fixed map view showing UTC (0°) on left, IDL (180°) in center, UTC (360°) on right
+- Map view showing UTC (0°) on left, IDL (180°) in center, UTC (360°) on right
 - Political timezone boundaries displayed using Natural Earth TopoJSON data
 - International Date Line highlighted in red with "IDL" label
 - Draggable ship marker (can move latitude and longitude)
 - Real-time display of ship's longitude, local time, UTC time, and IANA timezone name
 - Support for fractional timezone offsets (e.g., India UTC+5:30, Nepal UTC+5:45)
 - Date line crossing alerts (shows +1 DAY or -1 DAY notification)
-- Map zoom/pan disabled for focused user experience
+- Zoom controls enabled (can zoom in for detail, but not zoom out past initial view)
+- Pan/scroll enabled when zoomed in
 
 **Removed/Hidden Features:**
 - Route drawing and animation (commented out - was overcomplicating the UX)
+- Timezone hover tooltips (removed - were distracting when dragging ship)
 
 ## Tech Stack
 
@@ -84,11 +86,14 @@ src/
 - Detection based on large longitude change (>180°)
 
 ### Map Configuration
-- Fixed view centered on International Date Line (180°)
-- Zoom level 1.5 (shows full longitude range)
-- All zoom/pan interactions disabled
+- View centered on International Date Line (180°) using `fitBounds([[-60, 0], [70, 360]])`
+- Zoom dynamically calculated to fit container without showing duplicate content
+- Min zoom locked to initial level (prevents zooming out to see world wrap)
+- Max zoom set to 10 (allows zooming in for detail)
+- Zoom controls, scroll wheel zoom, double-click zoom, and panning all enabled
 - Ship can move freely within visible bounds (lat: -60° to 70°, lng: 0° to 360°)
 - Timezone boundaries loaded from /public/timezones.json (Natural Earth data)
+- CSS `overflow: hidden` on map container as visual fallback
 
 ## Design Guidelines
 

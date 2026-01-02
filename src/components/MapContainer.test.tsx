@@ -6,6 +6,10 @@ import L from 'leaflet'
 vi.mock('leaflet', () => {
   const mockMap = {
     setView: vi.fn().mockReturnThis(),
+    fitBounds: vi.fn().mockReturnThis(),
+    getZoom: vi.fn().mockReturnValue(2.2),
+    setMinZoom: vi.fn().mockReturnThis(),
+    setMaxZoom: vi.fn().mockReturnThis(),
     addLayer: vi.fn().mockReturnThis(),
     remove: vi.fn(),
     on: vi.fn().mockReturnThis(),
@@ -99,17 +103,23 @@ describe('MapContainer', () => {
   it('sets map view centered on International Date Line', () => {
     render(<MapContainer {...defaultProps} />)
     const mockMap = (L.map as ReturnType<typeof vi.fn>).mock.results[0]?.value
-    // Map should be centered on the IDL (180°)
-    expect(mockMap.setView).toHaveBeenCalledWith([0, 180], expect.any(Number))
+    // Map should fit bounds to show 0-360° longitude range (GMT to GMT via IDL)
+    expect(mockMap.fitBounds).toHaveBeenCalledWith(
+      [[-60, 0], [70, 360]],
+      expect.objectContaining({ animate: false })
+    )
   })
 
-  it('disables zoom and pan controls', () => {
+  it('enables zoom controls and sets min zoom to prevent zooming out', () => {
     render(<MapContainer {...defaultProps} />)
     const mapOptions = (L.map as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]
-    expect(mapOptions.zoomControl).toBe(false)
-    expect(mapOptions.scrollWheelZoom).toBe(false)
-    expect(mapOptions.doubleClickZoom).toBe(false)
-    expect(mapOptions.dragging).toBe(false)
+    const mockMap = (L.map as ReturnType<typeof vi.fn>).mock.results[0]?.value
+    // Zoom controls should be enabled
+    expect(mapOptions.zoomControl).toBe(true)
+    expect(mapOptions.scrollWheelZoom).toBe(true)
+    // Min zoom should be set to prevent zooming out
+    expect(mockMap.setMinZoom).toHaveBeenCalled()
+    expect(mockMap.setMaxZoom).toHaveBeenCalledWith(10)
   })
 
   it('adds a tile layer for the base map', () => {
